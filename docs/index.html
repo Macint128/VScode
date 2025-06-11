@@ -134,7 +134,6 @@
   }
 </style>
 
-<!-- Monaco 에디터 로딩 -->
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs/loader.js"></script>
 </head>
 <body>
@@ -174,35 +173,50 @@
 <div id="footer" contenteditable="false" spellcheck="false"></div>
 
 <script>
-  // 확장자별 아이콘 매핑
   const iconMap = {
     js: '📄',
     ts: '🧠',
     html: '🌐',
     css: '🎨',
-    json: '🗂️'
+    json: '🗂️',
+    py: '🐍',
+    java: '☕',
+    asm: '⚙️',
+    sh: '🐚',
+    cmd: '💻',
+    ps1: '⚡',
+    swift: '🦅'
   };
 
-  // 지원하는 확장자 목록
   const supportedExts = Object.keys(iconMap);
 
-  // 열린 파일 핸들 저장
   let currentFileHandle = null;
-
-  // 여러 파일 정보 저장 {name, handle, content}
   let files = [];
-
-  // Monaco 에디터 인스턴스
   let editor = null;
 
-  // 키보드 상태 플래그
-  let keyboardState = { cmd: false, alt: false, ctrl: false, shift: false };
+  function getLanguageFromExt(ext) {
+    switch (ext) {
+      case 'js': return 'javascript';
+      case 'ts': return 'typescript';
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'json': return 'json';
+      case 'py': return 'python';
+      case 'java': return 'java';
+      case 'asm': return 'plaintext'; // asm은 기본 지원 없음
+      case 'sh': return 'shell';
+      case 'cmd': return 'bat';
+      case 'ps1': return 'powershell';
+      case 'swift': return 'swift';
+      default: return 'plaintext';
+    }
+  }
 
   require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs' }});
   require(['vs/editor/editor.main'], function () {
     editor = monaco.editor.create(document.getElementById('editor'), {
       value: '',
-      language: 'javascript',
+      language: 'plaintext',
       theme: 'vs-dark',
       automaticLayout: true,
       fontSize: 14,
@@ -210,7 +224,6 @@
     });
   });
 
-  // 사이드바 파일 리스트 렌더링
   function renderFileList() {
     const fileList = document.getElementById('fileList');
     fileList.innerHTML = '';
@@ -225,164 +238,125 @@
     });
   }
 
-  // 파일 내용을 에디터에 로드
-  function openFileInEditor(index) {
+  async function openFileInEditor(index) {
     const file = files[index];
     editor.setValue(file.content);
     currentFileHandle = file.handle;
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    const lang = getLanguageFromExt(ext);
+    monaco.editor.setModelLanguage(editor.getModel(), lang);
+
     renderFileList();
   }
 
-  // 로컬 폴더 또는 파일 열기 (Safari 대응 포함)
   async function openFolderOrFiles() {
     files = [];
     currentFileHandle = null;
 
     if ('showDirectoryPicker' in window) {
-      // 크롬 등 폴더 열기 지원 브라우저
       try {
         const dirHandle = await window.showDirectoryPicker();
         await traverseDir(dirHandle);
-        if(files.length) {
-          openFileInEditor(0);
-        }
+        if(files.length) openFileInEditor(0);
         renderFileList();
       } catch (e) {
-        alert('폴더 열기 취소 또는 오류: ' + e.message);
+        alert('폴더 열기 취소됨 또는 오류: ' + e.message);
       }
     } else if ('showOpenFilePicker' in window) {
-      // 사파리 등 폴더 열기 미지원 브라우저 → 단일 파일 선택만
       try {
-        const fileHandles = await window.showOpenFilePicker({
-          multiple: true,
-          types: [{
-            description: 'Supported files',
-            accept: {
-              'text/javascript': ['.js'],
-              'text/html': ['.html'],
-              'text/css': ['.css'],
-              'application/json': ['.json']
-            }
-          }]
-        });
-        for (const handle of fileHandles) {
-          const file = await handle.getFile();
-          const ext = file.name.split('.').pop().toLowerCase();
-          if (!supportedExts.includes(ext)) continue;
-          const content = await file.text();
-          files.push({name: file.name, content, handle});
+        const pickedFiles = await window.showOpenFilePicker({multiple: true});
+        for (const fh of pickedFiles) {
+          const fileData = await fh.getFile();
+          const content = await fileData.text();
+          files.push({name: fileData.name, content, handle: fh});
         }
-        if(files.length) {
-          openFileInEditor(0);
-        }
+        if(files.length) openFileInEditor(0);
         renderFileList();
       } catch(e) {
-        alert('파일 열기 취소 또는 오류: ' + e.message);
+        alert('파일 열기 취소됨 또는 오류: ' + e.message);
       }
     } else {
-      alert('이 브라우저는 파일/폴더 열기를 지원하지 않습니다.');
+      alert('파일/폴더 열기 API를 지원하지 않는 브라우저입니다.');
     }
   }
 
-  // 폴더 재귀 탐색 (파일만 수집, 확장자 필터링)
   async function traverseDir(dirHandle) {
-    for await (const entry of dirHandle.values()) {
-      if (entry.kind === 'file') {
-        const ext = entry.name.split('.').pop().toLowerCase();
-        if (!supportedExts.includes(ext)) continue;
-        const file = await entry.getFile();
-        const content = await file.text();
-        files.push({ name: entry.name, content, handle: entry });
-      } else if (entry.kind === 'directory') {
-        await traverseDir(entry);
+    for await (const [name, handle] of dirHandle.entries()) {
+      if(handle.kind === 'file') {
+        const ext = name.split('.').pop().toLowerCase();
+        if(supportedExts.includes(ext)) {
+          const fileData = await handle.getFile();
+          const content = await fileData.text();
+          files.push({name, content, handle});
+        }
+      } else if(handle.kind === 'directory') {
+        await traverseDir(handle);
       }
     }
   }
 
-  // 저장 (현재 열려있는 파일에 저장)
-  async function saveFile() {
+  async function saveCurrentFile() {
     if (!currentFileHandle) {
-      alert('저장할 파일이 선택되지 않았습니다.');
+      alert('저장할 파일이 없습니다!');
       return;
     }
     try {
       const writable = await currentFileHandle.createWritable();
       await writable.write(editor.getValue());
       await writable.close();
-      logToConsole(`✅ ${getFileName(currentFileHandle)} 저장 완료`);
-    } catch (e) {
+      alert('저장 완료!');
+      // 내부 내용 업데이트
+      const idx = files.findIndex(f => f.handle === currentFileHandle);
+      if(idx !== -1) files[idx].content = editor.getValue();
+    } catch(e) {
       alert('저장 실패: ' + e.message);
     }
   }
 
-  // 콘솔 로그 출력 함수
-  function logToConsole(msg) {
-    const footer = document.getElementById('footer');
-    footer.textContent += msg + '\n';
-    footer.scrollTop = footer.scrollHeight;
-  }
-
-  // 실행 버튼 누르면 JS 코드 실행 (eval 사용)
   function runCode() {
+    const lang = editor.getModel().getLanguageId();
     const code = editor.getValue();
-    logToConsole('▶ 실행 중...');
-    try {
-      // eslint-disable-next-line no-eval
-      const result = eval(code);
-      logToConsole('💡 결과: ' + result);
-    } catch (e) {
-      logToConsole('❌ 오류: ' + e.message);
-    }
-  }
 
-  // 현재 파일 이름 가져오기
-  function getFileName(handle) {
-    if (handle.name) return handle.name;
-    if (handle.getFile) return handle.getFile().then(f => f.name);
-    return '알수없는파일';
-  }
-
-  // 가상 키보드 입력 처리
-  function insertSnippet(snippet) {
-    const pos = editor.getPosition();
-    editor.executeEdits('', [{
-      range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-      text: snippet,
-      forceMoveMarkers: true
-    }]);
-    editor.focus();
-  }
-
-  // 키보드 클릭 이벤트 바인딩
-  document.getElementById('keyboard').addEventListener('click', e => {
-    if (e.target.classList.contains('key')) {
-      const key = e.target.dataset.key;
-      if(key === '⌫') {
-        editor.trigger('keyboard', 'deleteLeft', {});
-      } else if (key === '⇥') {
-        editor.trigger('keyboard', 'tab', {});
-      } else {
-        insertSnippet(key);
+    if(lang === 'javascript' || lang === 'typescript') {
+      try {
+        // eslint-disable-next-line no-eval
+        const result = eval(code);
+        showOutput(result === undefined ? '실행 완료, 결과 없음' : result);
+      } catch(e) {
+        showOutput('실행 오류: ' + e.message);
       }
+    } else {
+      showOutput('이 언어는 직접 실행이 지원되지 않습니다: ' + lang);
+    }
+  }
+
+  function showOutput(text) {
+    const footer = document.getElementById('footer');
+    footer.textContent = String(text);
+  }
+
+  // 전용 키보드 단축키 이벤트 처리 (예시)
+  const keyboard = document.getElementById('keyboard');
+  keyboard.addEventListener('click', e => {
+    if(!e.target.classList.contains('key')) return;
+    const key = e.target.getAttribute('data-key');
+
+    // 편집기 커서 위치에 특수문자 삽입
+    if(editor) {
+      const selection = editor.getSelection();
+      editor.executeEdits(null, [{
+        range: selection,
+        text: key,
+        forceMoveMarkers: true
+      }]);
+      editor.focus();
     }
   });
 
-  // 단축키 처리 (예: ⌘+S 저장)
-  window.addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      saveFile();
-    }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
-      e.preventDefault();
-      runCode();
-    }
-  });
-
-  // 버튼 이벤트 바인딩
-  document.getElementById('openFolderBtn').onclick = openFolderOrFiles;
-  document.getElementById('saveBtn').onclick = saveFile;
-  document.getElementById('runBtn').onclick = runCode;
+  document.getElementById('openFolderBtn').addEventListener('click', openFolderOrFiles);
+  document.getElementById('saveBtn').addEventListener('click', saveCurrentFile);
+  document.getElementById('runBtn').addEventListener('click', runCode);
 
 </script>
 
