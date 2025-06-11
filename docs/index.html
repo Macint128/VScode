@@ -1,71 +1,390 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="CodeNest" />
-  <link rel="apple-touch-icon" href="icon.png" />
-  <title>CodeNest</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Courier New', Courier, monospace;
-      background-color: #1e1e1e;
-      color: #d4d4d4;
-      display: flex;
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>준호의 마법 IDE</title>
+<link rel="apple-touch-icon" href="icon.png" />
+<meta name="apple-mobile-web-app-title" content="준호의 마법 IDE" /> 
+<style>
+  /* 전체 레이아웃 */
+  body, html {
+    margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1e1e1e; color: #ddd;
+  }
+  header {
+    height: 40px; background: #007acc; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: white;
+    user-select: none;
+  }
+  #container {
+    flex: 1; display: flex; overflow: hidden;
+  }
+  #sidebar {
+    width: 240px; background: #252526; color: #bbb; overflow-y: auto; border-right: 1px solid #333;
+  }
+  #sidebar h2 {
+    margin: 8px 12px;
+    font-weight: 600;
+    font-size: 1.1em;
+    border-bottom: 1px solid #444;
+    padding-bottom: 4px;
+  }
+  #fileList {
+    list-style: none; padding: 0; margin: 0;
+  }
+  #fileList li {
+    padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  }
+  #fileList li:hover, #fileList li.active {
+    background: #0e639c;
+    color: white;
+  }
+  #fileList li .icon {
+    font-size: 1.2em;
+    width: 20px; text-align: center;
+  }
+  #editor {
+    flex: 1;
+    background: #1e1e1e;
+  }
+  #keyboard {
+    height: 50px;
+    background: #333;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    padding: 0 8px;
+    user-select: none;
+  }
+  #keyboard .key {
+    background: #555;
+    color: white;
+    margin: 0 4px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    user-select: none;
+    transition: background 0.15s ease;
+    font-family: monospace;
+  }
+  #keyboard .key:hover {
+    background: #0e639c;
+  }
+  #footer {
+    height: 100px;
+    background: #1e1e1e;
+    color: #bbb;
+    font-family: monospace;
+    font-size: 14px;
+    overflow-y: auto;
+    border-top: 1px solid #333;
+    padding: 8px;
+  }
+  button {
+    background: #0e639c;
+    border: none;
+    padding: 6px 12px;
+    color: white;
+    font-weight: 600;
+    border-radius: 3px;
+    cursor: pointer;
+    user-select: none;
+  }
+  button:hover {
+    background: #1177d3;
+  }
+  /* 모바일 세로모드 대응 */
+  @media (orientation: portrait) {
+    #container {
       flex-direction: column;
-      height: 100vh;
     }
-
-    header {
-      background-color: #333;
-      padding: 10px;
-      text-align: center;
-      font-size: 1.2rem;
-      color: #ffffff;
+    #sidebar {
+      width: 100%;
+      height: 140px;
+      border-right: none;
+      border-bottom: 1px solid #333;
+      overflow-x: auto;
+      overflow-y: hidden;
+      display: flex;
+      flex-wrap: nowrap;
     }
-
-    textarea {
+    #fileList {
+      display: flex;
+      flex-wrap: nowrap;
+    }
+    #fileList li {
+      flex: 0 0 auto;
+      padding: 6px 16px;
+      white-space: nowrap;
+      border-right: 1px solid #444;
+    }
+    #editor {
       flex: 1;
-      background-color: #1e1e1e;
-      color: #d4d4d4;
-      border: none;
-      padding: 15px;
-      font-size: 1rem;
-      resize: none;
-      outline: none;
-      font-family: 'Courier New', Courier, monospace;
+      height: 50vh;
     }
+    #footer {
+      height: 80px;
+      font-size: 12px;
+    }
+  }
+</style>
 
-    footer {
-      background-color: #333;
-      color: #999;
-      text-align: center;
-      padding: 5px;
-      font-size: 0.8rem;
-    }
-  </style>
+<!-- Monaco 에디터 로딩 -->
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs/loader.js"></script>
 </head>
 <body>
-  <header>💻 CodeNest - Web Editor</header>
-  <textarea id="editor" placeholder="여기에 코드를 입력하세요..."></textarea>
-  <footer>© 2025 CodeNest. 준호 전용 에디터 😎</footer>
 
-  <script>
-    const editor = document.getElementById("editor");
+<header>
+  <div>준호의 마법 IDE</div>
+  <div>
+    <button id="openFolderBtn">폴더/파일 열기</button>
+    <button id="saveBtn">저장 💾</button>
+    <button id="runBtn">실행 ▶</button>
+  </div>
+</header>
 
-    // 저장된 코드 불러오기
-    window.addEventListener("load", () => {
-      const saved = localStorage.getItem("codenest-content");
-      if (saved) editor.value = saved;
+<div id="container">
+  <nav id="sidebar">
+    <h2>파일 목록</h2>
+    <ul id="fileList"></ul>
+  </nav>
+  <main id="editor"></main>
+</div>
+
+<div id="keyboard">
+  <div class="key" data-key="⌘">⌘</div>
+  <div class="key" data-key="⌥">⌥</div>
+  <div class="key" data-key="⌃">⌃</div>
+  <div class="key" data-key="⇧">⇧</div>
+  <div class="key" data-key="⎋">⎋</div>
+  <div class="key" data-key="⌫">⌫</div>
+  <div class="key" data-key="⇥">⇥</div>
+  <div class="key" data-key="{}">{}</div>
+  <div class="key" data-key="()">( )</div>
+  <div class="key" data-key="[]">[ ]</div>
+  <div class="key" data-key="<>">&lt;&gt;</div>
+  <div class="key" data-key=";">;</div>
+</div>
+
+<div id="footer" contenteditable="false" spellcheck="false"></div>
+
+<script>
+  // 확장자별 아이콘 매핑
+  const iconMap = {
+    js: '📄',
+    ts: '🧠',
+    html: '🌐',
+    css: '🎨',
+    json: '🗂️'
+  };
+
+  // 지원하는 확장자 목록
+  const supportedExts = Object.keys(iconMap);
+
+  // 열린 파일 핸들 저장
+  let currentFileHandle = null;
+
+  // 여러 파일 정보 저장 {name, handle, content}
+  let files = [];
+
+  // Monaco 에디터 인스턴스
+  let editor = null;
+
+  // 키보드 상태 플래그
+  let keyboardState = { cmd: false, alt: false, ctrl: false, shift: false };
+
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.41.0/min/vs' }});
+  require(['vs/editor/editor.main'], function () {
+    editor = monaco.editor.create(document.getElementById('editor'), {
+      value: '',
+      language: 'javascript',
+      theme: 'vs-dark',
+      automaticLayout: true,
+      fontSize: 14,
+      minimap: { enabled: false }
     });
+  });
 
-    // 실시간 저장
-    editor.addEventListener("input", () => {
-      localStorage.setItem("codenest-content", editor.value);
+  // 사이드바 파일 리스트 렌더링
+  function renderFileList() {
+    const fileList = document.getElementById('fileList');
+    fileList.innerHTML = '';
+    files.forEach((f, i) => {
+      const ext = f.name.split('.').pop().toLowerCase();
+      const icon = iconMap[ext] || '📁';
+      const li = document.createElement('li');
+      li.className = (currentFileHandle === f.handle) ? 'active' : '';
+      li.innerHTML = `<span class="icon">${icon}</span> ${f.name}`;
+      li.onclick = () => openFileInEditor(i);
+      fileList.appendChild(li);
     });
-  </script>
+  }
+
+  // 파일 내용을 에디터에 로드
+  function openFileInEditor(index) {
+    const file = files[index];
+    editor.setValue(file.content);
+    currentFileHandle = file.handle;
+    renderFileList();
+  }
+
+  // 로컬 폴더 또는 파일 열기 (Safari 대응 포함)
+  async function openFolderOrFiles() {
+    files = [];
+    currentFileHandle = null;
+
+    if ('showDirectoryPicker' in window) {
+      // 크롬 등 폴더 열기 지원 브라우저
+      try {
+        const dirHandle = await window.showDirectoryPicker();
+        await traverseDir(dirHandle);
+        if(files.length) {
+          openFileInEditor(0);
+        }
+        renderFileList();
+      } catch (e) {
+        alert('폴더 열기 취소 또는 오류: ' + e.message);
+      }
+    } else if ('showOpenFilePicker' in window) {
+      // 사파리 등 폴더 열기 미지원 브라우저 → 단일 파일 선택만
+      try {
+        const fileHandles = await window.showOpenFilePicker({
+          multiple: true,
+          types: [{
+            description: 'Supported files',
+            accept: {
+              'text/javascript': ['.js'],
+              'text/html': ['.html'],
+              'text/css': ['.css'],
+              'application/json': ['.json']
+            }
+          }]
+        });
+        for (const handle of fileHandles) {
+          const file = await handle.getFile();
+          const ext = file.name.split('.').pop().toLowerCase();
+          if (!supportedExts.includes(ext)) continue;
+          const content = await file.text();
+          files.push({name: file.name, content, handle});
+        }
+        if(files.length) {
+          openFileInEditor(0);
+        }
+        renderFileList();
+      } catch(e) {
+        alert('파일 열기 취소 또는 오류: ' + e.message);
+      }
+    } else {
+      alert('이 브라우저는 파일/폴더 열기를 지원하지 않습니다.');
+    }
+  }
+
+  // 폴더 재귀 탐색 (파일만 수집, 확장자 필터링)
+  async function traverseDir(dirHandle) {
+    for await (const entry of dirHandle.values()) {
+      if (entry.kind === 'file') {
+        const ext = entry.name.split('.').pop().toLowerCase();
+        if (!supportedExts.includes(ext)) continue;
+        const file = await entry.getFile();
+        const content = await file.text();
+        files.push({ name: entry.name, content, handle: entry });
+      } else if (entry.kind === 'directory') {
+        await traverseDir(entry);
+      }
+    }
+  }
+
+  // 저장 (현재 열려있는 파일에 저장)
+  async function saveFile() {
+    if (!currentFileHandle) {
+      alert('저장할 파일이 선택되지 않았습니다.');
+      return;
+    }
+    try {
+      const writable = await currentFileHandle.createWritable();
+      await writable.write(editor.getValue());
+      await writable.close();
+      logToConsole(`✅ ${getFileName(currentFileHandle)} 저장 완료`);
+    } catch (e) {
+      alert('저장 실패: ' + e.message);
+    }
+  }
+
+  // 콘솔 로그 출력 함수
+  function logToConsole(msg) {
+    const footer = document.getElementById('footer');
+    footer.textContent += msg + '\n';
+    footer.scrollTop = footer.scrollHeight;
+  }
+
+  // 실행 버튼 누르면 JS 코드 실행 (eval 사용)
+  function runCode() {
+    const code = editor.getValue();
+    logToConsole('▶ 실행 중...');
+    try {
+      // eslint-disable-next-line no-eval
+      const result = eval(code);
+      logToConsole('💡 결과: ' + result);
+    } catch (e) {
+      logToConsole('❌ 오류: ' + e.message);
+    }
+  }
+
+  // 현재 파일 이름 가져오기
+  function getFileName(handle) {
+    if (handle.name) return handle.name;
+    if (handle.getFile) return handle.getFile().then(f => f.name);
+    return '알수없는파일';
+  }
+
+  // 가상 키보드 입력 처리
+  function insertSnippet(snippet) {
+    const pos = editor.getPosition();
+    editor.executeEdits('', [{
+      range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+      text: snippet,
+      forceMoveMarkers: true
+    }]);
+    editor.focus();
+  }
+
+  // 키보드 클릭 이벤트 바인딩
+  document.getElementById('keyboard').addEventListener('click', e => {
+    if (e.target.classList.contains('key')) {
+      const key = e.target.dataset.key;
+      if(key === '⌫') {
+        editor.trigger('keyboard', 'deleteLeft', {});
+      } else if (key === '⇥') {
+        editor.trigger('keyboard', 'tab', {});
+      } else {
+        insertSnippet(key);
+      }
+    }
+  });
+
+  // 단축키 처리 (예: ⌘+S 저장)
+  window.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveFile();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      runCode();
+    }
+  });
+
+  // 버튼 이벤트 바인딩
+  document.getElementById('openFolderBtn').onclick = openFolderOrFiles;
+  document.getElementById('saveBtn').onclick = saveFile;
+  document.getElementById('runBtn').onclick = runCode;
+
+</script>
+
 </body>
 </html>
