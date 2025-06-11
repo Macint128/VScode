@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CodeNest" />
+  <link rel="apple-touch-icon" href="icon.png" />
+  <title>CodeNest</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Courier New', Courier, monospace;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      background-color: #333;
+      padding: 10px;
+      text-align: center;
+      font-size: 1.2rem;
+      color: #ffffff;
+    }
+
+    textarea {
+      flex: 1;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      border: none;
+      padding: 15px;
+      font-size: 1rem;
+      resize: none;
+      outline: none;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    footer {
+      background-color: #333;
+      color: #999;
+      text-align: center;
+      padding: 5px;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <header>💻 CodeNest - Web Editor</header>
+  <textarea id="editor" placeholder="여기에 코드를 입력하세요..."></textarea>
+  <footer>© 2025 CodeNest. 준호 전용 에디터 😎</footer>
+
+  <script>
+    const editor = document.getElementById("editor");
+
+    // 저장된 코드 불러오기
+    window.addEventListener("load", () => {
+      const saved = localStorage.getItem("codenest-content");
+      if (saved) editor.value = saved;
+    });
+
+    // 실시간 저장
+    editor.addEventListener("input", () => {
+      localStorage.setItem("codenest-content", editor.value);
+    });
+  </script>
+</body>
+</html>
